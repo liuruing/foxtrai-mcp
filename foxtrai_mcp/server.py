@@ -214,7 +214,7 @@ async def get_task_status(
         "error_msg": task_data.get("error_msg", ""),
         "outputs": [
             {
-                "url": o.get("path") or o.get("url"),
+                "asset_id": o.get("asset_id") or o.get("id"),
                 "width": o.get("width"),
                 "height": o.get("height"),
                 "mime_type": o.get("mime_type"),
@@ -267,7 +267,11 @@ async def list_tasks(
                 "prompt": item.get("prompt"),
                 "model": item.get("model"),
                 "outputs": [
-                    {"url": o.get("path") or o.get("url"), "width": o.get("width"), "height": o.get("height")}
+                    {
+                        "asset_id": o.get("asset_id") or o.get("id"),
+                        "width": o.get("width"),
+                        "height": o.get("height"),
+                    }
                     for o in item.get("edges", {}).get("outputs", [])
                 ],
             }
@@ -313,8 +317,7 @@ async def list_assets(
         "total": data.get("total", 0),
         "items": [
             {
-                "id": item.get("id"),
-                "url": item.get("url"),
+                "asset_id": item.get("id"),
                 "width": item.get("width"),
                 "height": item.get("height"),
                 "created_at": item.get("created_at"),
@@ -322,6 +325,56 @@ async def list_assets(
             for item in data.get("items", [])
         ],
     }
+
+
+@mcp.tool()
+async def download_asset(
+    asset_id: Annotated[str, Field(description="The asset ID to download")],
+    output_path: Annotated[
+        str | None,
+        Field(description="Output file path. If not provided, returns base64-encoded image data"),
+    ] = None,
+) -> str:
+    """Download an image asset by its asset_id."""
+    import base64
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.get(
+            f"{API_BASE}/image/assets",
+            headers=_headers(),
+            params={"media_type": "image", "size": 60},
+        )
+        result = _check_response(resp)
+
+    data = result.get("data", {})
+    items = data.get("items", [])
+    asset = next((item for item in items if item.get("id") == asset_id), None)
+
+    if not asset:
+        return f"Error: Asset {asset_id} not found"
+
+    download_url = asset.get("url", "")
+    if not download_url:
+        return f"Error: No download URL found for asset {asset_id}"
+
+    download_headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.foxtrai.com/",
+    }
+    async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
+        resp = await client.get(download_url, headers=download_headers)
+        resp.raise_for_status()
+        content = resp.content
+
+    if output_path:
+        with open(output_path, "wb") as f:
+            f.write(content)
+        return f"Image downloaded to: {output_path}"
+    else:
+        b64_data = base64.b64encode(content).decode("utf-8")
+        return b64_data
 
 
 @mcp.tool()
@@ -408,7 +461,7 @@ async def generate_image(
                 "model": task_data.get("model"),
                 "outputs": [
                     {
-                        "url": o.get("path") or o.get("url"),
+                        "asset_id": o.get("asset_id") or o.get("id"),
                         "width": o.get("width"),
                         "height": o.get("height"),
                         "mime_type": o.get("mime_type"),
