@@ -21,7 +21,9 @@ from pydantic import Field
 API_BASE = "https://www.foxtrai.com/api/generate"
 TOKEN = os.environ.get("FOXTRAI_TOKEN", "")
 
-VALID_MODELS = {"nano-banana-pro", "nano-banana-pro-ultra", "nano-banana-2", "nano-banana", "gpt-image-2"}
+VALID_IMAGE_MODELS = {"nano-banana-pro", "nano-banana-pro-ultra", "nano-banana-2", "nano-banana", "gpt-image-2"}
+VALID_VIDEO_MODELS = {"kling-2.5-turbo-pro", "seedance-2-pro", "sora-2", "veo-3-1-fast"}
+VALID_MODELS = VALID_IMAGE_MODELS | VALID_VIDEO_MODELS
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -33,9 +35,10 @@ mcp = FastMCP(
     "Foxtrai AI Painting",
     instructions=(
         "This server connects to the Foxtrai AI painting platform. "
-        "You can upload reference images, create AI drawing tasks with different models "
-        "(nano-banana, nano-banana-pro, nano-banana-pro-ultra, nano-banana-2, gpt-image-2), "
-        "check task progress, and manage generated assets."
+        "You can upload reference images, create AI image/video generation tasks. "
+        "Image models: nano-banana-pro (default), nano-banana-pro-ultra, nano-banana-2, nano-banana, gpt-image-2. "
+        "Video models: kling-2.5-turbo-pro, seedance-2-pro, sora-2, veo-3-1-fast. "
+        "All models use the same task creation endpoint. Check task progress and manage generated assets."
     ),
 )
 
@@ -144,7 +147,7 @@ async def create_drawing_task(
     model: Annotated[
         str,
         Field(
-            description="Model identifier: nano-banana-pro (default), nano-banana-pro-ultra, nano-banana-2, nano-banana, or gpt-image-2",
+            description="Model identifier. Image: nano-banana-pro (default), nano-banana-pro-ultra, nano-banana-2, nano-banana, gpt-image-2. Video: kling-2.5-turbo-pro, seedance-2-pro, sora-2, veo-3-1-fast",
             default="nano-banana-pro",
         ),
     ] = "nano-banana-pro",
