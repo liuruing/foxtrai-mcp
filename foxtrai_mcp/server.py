@@ -21,6 +21,8 @@ from pydantic import Field
 API_BASE = "https://www.foxtrai.com/api/generate"
 TOKEN = os.environ.get("FOXTRAI_TOKEN", "")
 
+VALID_MODELS = {"nano-banana-pro", "nano-banana-pro-ultra", "nano-banana-2", "nano-banana", "gpt-image-2"}
+
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
@@ -32,7 +34,7 @@ mcp = FastMCP(
     instructions=(
         "This server connects to the Foxtrai AI painting platform. "
         "You can upload reference images, create AI drawing tasks with different models "
-        "(nano-banana, nano-banana-pro, nano-banana-pro-ultra, nano-banana-2), "
+        "(nano-banana, nano-banana-pro, nano-banana-pro-ultra, nano-banana-2, gpt-image-2), "
         "check task progress, and manage generated assets."
     ),
 )
@@ -142,7 +144,7 @@ async def create_drawing_task(
     model: Annotated[
         str,
         Field(
-            description="Model identifier: nano-banana-pro (default), nano-banana-pro-ultra, nano-banana-2, or nano-banana",
+            description="Model identifier: nano-banana-pro (default), nano-banana-pro-ultra, nano-banana-2, nano-banana, or gpt-image-2",
             default="nano-banana-pro",
         ),
     ] = "nano-banana-pro",
@@ -167,6 +169,9 @@ async def create_drawing_task(
     Submit an AI drawing task to generate an image.
     Returns a task_id for tracking progress via get_task_status.
     """
+    if model not in VALID_MODELS:
+        return f"Error: invalid model '{model}'. Must be one of: {', '.join(sorted(VALID_MODELS))}"
+
     body: dict = {"prompt": prompt, "model": model, "safe_generation": safe_generation}
     if input_asset_ids:
         body["input_asset_ids"] = input_asset_ids[:5]
@@ -418,6 +423,9 @@ async def generate_image(
     Combines create_drawing_task + get_task_status with automatic polling.
     """
     import asyncio
+
+    if model not in VALID_MODELS:
+        return {"status": "failed", "error_msg": f"Invalid model '{model}'. Must be one of: {', '.join(sorted(VALID_MODELS))}"}
 
     body: dict = {"prompt": prompt, "model": model, "safe_generation": safe_generation}
     if input_asset_ids:
