@@ -25,6 +25,8 @@ VALID_IMAGE_MODELS = {"nano-banana-pro", "nano-banana-pro-ultra", "nano-banana-2
 VALID_VIDEO_MODELS = {"kling-2.5-turbo-pro", "seedance-2-pro", "sora-2", "veo-3-1-fast"}
 VALID_MODELS = VALID_IMAGE_MODELS | VALID_VIDEO_MODELS
 
+
+
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
@@ -85,8 +87,8 @@ async def upload_image(
         file_bytes = f.read()
 
     file_size = len(file_bytes)
-    if file_size > 4 * 1024 * 1024:
-        return "Error: file exceeds 4MB limit"
+    if file_size > 3 * 1024 * 1024:
+        return "Error: file exceeds 3MB limit"
     if width < 256 or height < 256:
         return f"Error: image dimensions {width}x{height} too small (min 256x256)"
 
@@ -161,7 +163,11 @@ async def create_drawing_task(
     ] = None,
     resolution: Annotated[
         str | None,
-        Field(description="Resolution/quality: 1K (default), 2K, or 4K"),
+        Field(description="Resolution: 1K (default), 2K, or 4K. Only for nano-banana model family."),
+    ] = None,
+    quality: Annotated[
+        str | None,
+        Field(description="Quality tier, gpt-image-2 exclusive. Currently only supports 'medium'."),
     ] = None,
     safe_generation: Annotated[
         bool,
@@ -182,6 +188,8 @@ async def create_drawing_task(
         body["aspect_ratio"] = aspect_ratio
     if resolution:
         body["resolution"] = resolution
+    if quality and model == "gpt-image-2":
+        body["quality"] = quality
 
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
@@ -413,10 +421,11 @@ async def delete_asset(
 @mcp.tool()
 async def generate_image(
     prompt: Annotated[str, Field(description="Text prompt describing the image to generate")],
-    model: Annotated[str, Field(description="Model identifier")] = "nano-banana-pro",
+    model: Annotated[str, Field(description="Model identifier. Image: nano-banana-pro (default), nano-banana-pro-ultra, nano-banana-2, nano-banana, gpt-image-2. Video: kling-2.5-turbo-pro, seedance-2-pro, sora-2, veo-3-1-fast")] = "nano-banana-pro",
     input_asset_ids: Annotated[list[str] | None, Field(description="Reference image asset IDs")] = None,
     aspect_ratio: Annotated[str | None, Field(description="Aspect ratio")] = None,
-    resolution: Annotated[str | None, Field(description="Resolution: 1K, 2K, 4K")] = None,
+    resolution: Annotated[str | None, Field(description="Resolution: 1K (default), 2K, or 4K. For nano-banana models only; gpt-image-2 uses quality instead")] = None,
+    quality: Annotated[str | None, Field(description="Quality for gpt-image-2: low, medium, high, or auto. If omitted with gpt-image-2, resolution is mapped automatically (2K→high, 1K→medium)")] = None,
     safe_generation: Annotated[bool, Field(description="Safe generation mode")] = False,
     poll_interval: Annotated[int, Field(description="Seconds between status checks")] = 3,
     max_wait: Annotated[int, Field(description="Max seconds to wait before timeout")] = 300,
@@ -437,6 +446,8 @@ async def generate_image(
         body["aspect_ratio"] = aspect_ratio
     if resolution:
         body["resolution"] = resolution
+    if quality and model == "gpt-image-2":
+        body["quality"] = quality
 
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
